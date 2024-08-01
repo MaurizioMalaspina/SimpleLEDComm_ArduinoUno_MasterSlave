@@ -1,0 +1,157 @@
+#define APPLIANCE_ANODE_PIN   12
+#define APPLIANCE_CATHODE_PIN 9
+
+#define RC_ANODE_PIN   2
+#define RC_CATHODE_PIN 7
+
+#define INTERNAL_LED_PIN  13
+
+#define BIT_TIME_ms 1
+
+#define SWITCH_PIN  10
+#define SWITCH_DEB_TIME_ms  50
+#define SWITCH_DEB_TIME_TICK  (SWITCH_DEB_TIME_ms/BIT_TIME_ms)
+#define SWITCH_OPEN   1
+#define SWITCH_CLOSED 0
+
+#define INTERFRAME_BITS 32
+#define START_BITS         8
+#define FRAME_LEN_BITS    16
+
+#define CMD_SET_LED_ON  0
+#define CMD_SET_LED_OFF 0xFF
+
+
+
+int txBit = 1;
+int txBitCnt;
+//int rxBit;
+int switchPinSts;
+int switchDebouncer;
+int switchSts;
+int switchStatusChangedEvent = 0;
+ byte cmdToSend; 
+unsigned int  currentlyTransmittingCmd;
+
+void setup() {
+  // put your setup code here, to run once:
+  pinMode(APPLIANCE_ANODE_PIN, OUTPUT);
+  pinMode(APPLIANCE_CATHODE_PIN, OUTPUT);
+  pinMode(RC_ANODE_PIN, OUTPUT);
+  pinMode(RC_CATHODE_PIN, OUTPUT);
+
+  pinMode(SWITCH_PIN, INPUT_PULLUP);
+
+  pinMode(INTERNAL_LED_PIN, OUTPUT);
+
+  digitalWrite(APPLIANCE_ANODE_PIN, HIGH); 
+  digitalWrite(APPLIANCE_CATHODE_PIN, LOW);
+
+  digitalWrite(RC_ANODE_PIN, HIGH); 
+  digitalWrite(RC_CATHODE_PIN, LOW);
+
+  digitalWrite(INTERNAL_LED_PIN, HIGH);
+
+  Serial.begin(115200);
+  while (!Serial);
+
+  switchDebouncer = SWITCH_DEB_TIME_ms;
+  switchSts = SWITCH_OPEN;
+
+  txBitCnt = 0;
+  cmdToSend = CMD_SET_LED_ON;
+
+  delay(1000);
+}
+
+void debounceSwitch(void)
+{
+  switchPinSts = digitalRead(SWITCH_PIN);
+  if(switchPinSts != switchSts)
+  {
+    if(switchDebouncer)
+    {
+      switchDebouncer--;
+      if(!switchDebouncer)
+      {
+        switchSts ^= 1; // Toggle status  
+        switchStatusChangedEvent = 1; 
+      }  
+    }   
+  }
+  else
+  {
+    switchDebouncer = SWITCH_DEB_TIME_ms;  
+    switchStatusChangedEvent = 0;
+  }
+}
+
+void loop() {
+  
+  debounceSwitch();
+  
+  
+  if(switchStatusChangedEvent == 1 && switchSts == SWITCH_CLOSED)
+  {
+    txBit ^= 1;  
+
+    if(cmdToSend == CMD_SET_LED_ON)
+    {
+      cmdToSend = CMD_SET_LED_OFF;
+      digitalWrite(INTERNAL_LED_PIN, LOW);
+    }
+    else if(cmdToSend == CMD_SET_LED_OFF)
+    { 
+      cmdToSend = CMD_SET_LED_ON;
+      digitalWrite(INTERNAL_LED_PIN, HIGH);
+    }
+    // else ...
+  }
+
+  if(txBitCnt < INTERFRAME_BITS)
+    txBit = 0; // TX LED OFF
+   else
+   {
+      if(txBitCnt < INTERFRAME_BITS + START_BITS)
+      {
+        txBit = 1; // TX LED ON
+        currentlyTransmittingCmd = (((unsigned int) ~cmdToSend)<<8) + ((unsigned int) cmdToSend); // Latch command
+      }
+     else
+     {
+        txBit = currentlyTransmittingCmd & 0x0001; // LSB first command the its complemented one
+        currentlyTransmittingCmd >>= 1;
+     }
+   }
+
+  txBitCnt = (txBitCnt + 1)%(INTERFRAME_BITS + START_BITS + FRAME_LEN_BITS);
+
+  // Tx led
+  digitalWrite(RC_ANODE_PIN, txBit); 
+  digitalWrite(RC_CATHODE_PIN, LOW);
+  delayMicroseconds(BIT_TIME_ms * 966);
+
+/*
+  // RX Led ON
+  pinMode(APPLIANCE_ANODE_PIN, OUTPUT);
+  pinMode(APPLIANCE_CATHODE_PIN, OUTPUT);
+  digitalWrite(APPLIANCE_ANODE_PIN, HIGH); // HIGH = ON LOW = OFF --> modificare questo stato in base al comando ricevuto
+  digitalWrite(APPLIANCE_CATHODE_PIN, LOW);
+  delayMicroseconds(790);
+  
+  // RX Led reverse charged
+  digitalWrite(APPLIANCE_ANODE_PIN, LOW); 
+  digitalWrite(APPLIANCE_CATHODE_PIN, HIGH);
+  delayMicroseconds(10);
+
+  // RX Led spontaneous discharge
+  pinMode(APPLIANCE_CATHODE_PIN, INPUT);
+  delayMicroseconds(200);
+
+  rxBit = digitalRead(APPLIANCE_CATHODE_PIN);
+
+
+  Serial.println(rxBit);
+
+  */
+}
