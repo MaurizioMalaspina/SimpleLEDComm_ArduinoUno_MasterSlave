@@ -14,7 +14,7 @@ The repository is organized as follows:
 
 - `Master/`: Contains the Arduino code for the master board.
 - `Slave/`: Contains the Arduino code for the slave board.
-- `media/`: Contains media files such as the demonstration video and images.
+- `media/`: Contains media files such as the [demonstration video](https://github.com/MaurizioMalaspina/SimpleLEDComm_ArduinoUno_MasterSlave/blob/main/media/LightComm%20Demo.mp4) and images.
 - `docs/`: Contains documentation such as the document by MITSUBISHI ELECTRIC RESEARCH LABORATORIES.
 
 ## Dependencies
